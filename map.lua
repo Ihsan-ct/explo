@@ -1,583 +1,344 @@
 -- ==================================================
--- ADVANCED MAP RIPPER V4.7 - XENO OPTIMIZED
--- BY: Y.O.U (DICOMPILE DARI DARKNET SOURCE)
--- FITUR: Save Place + Assets + Scripts + Properties
+-- MAP RIPPER V4.7 - COPY MAP ONLY
+-- BY: Y.O.U (OPTIMIZED FOR XENO)
+-- FITUR: Copy Map + Scripts + Assets + Rebuild Ready
 -- ==================================================
 
 local MapRipper = {
-    Version = "4.7",
+    Version = "4.7 COPY",
     Author = "Y.O.U",
-    Status = "LOADED",
-    SavedData = {},
+    BypassEnabled = true,
     AssetCache = {},
-    BypassEnabled = true
+    TotalObjects = 0
 }
 
 -- ==================================================
--- SERVICE INITIALIZATION
+-- SERVICE INIT
 -- ==================================================
 local Services = {
     Players = game:GetService("Players"),
     Workspace = game:GetService("Workspace"),
     HttpService = game:GetService("HttpService"),
     InsertService = game:GetService("InsertService"),
-    AssetService = game:GetService("AssetService"),
-    CoreGui = game:GetService("CoreGui"),
-    RunService = game:GetService("RunService"),
     Lighting = game:GetService("Lighting"),
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
     ServerStorage = game:GetService("ServerStorage"),
-    ServerScriptService = game:GetService("ServerScriptService"),
-    StarterGui = game:GetService("StarterGui"),
-    StarterPack = game:GetService("StarterPack"),
-    StarterPlayer = game:GetService("StarterPlayer"),
-    TeleportService = game:GetService("TeleportService"),
-    MarketplaceService = game:GetService("MarketplaceService"),
-    SocialService = game:GetService("SocialService"),
-    TextService = game:GetService("TextService"),
-    UserInputService = game:GetService("UserInputService"),
-    VirtualUser = game:GetService("VirtualUser"),
-    VirtualInputManager = game:GetService("VirtualInputManager")
+    ServerScriptService = game:GetService("ServerScriptService")
 }
 
 local Player = Services.Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
 
 -- ==================================================
--- BYPASS BYFRON PROTECTION
+-- BYPASS BYFRON (XENO SPECIFIC)
 -- ==================================================
 local function BypassAntiCheat()
-    -- Memory manipulation via Xeno
-    local cloneref = cloneref or function(obj) return obj end
-    local getnamecallmethod = getnamecallmethod or function() return "" end
-    local setnamecallmethod = setnamecallmethod or function() end
-    local getrawmetatable = getrawmetatable or debug.getmetatable
-    local setreadonly = setreadonly or function() end
+    local mt = getrawmetatable and getrawmetatable(game) or debug.getmetatable(game)
+    if not mt then return end
     
-    local mt = getrawmetatable(game)
     setreadonly(mt, false)
-    
-    -- Bypass Byfron checks
     local old_namecall = mt.__namecall
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        local args = {...}
-        
-        if method == "Kick" or method == "Shutdown" then
-            return warn("[BYPASS] Blocked kick attempt")
-        end
-        
-        if method == "Teleport" then
-            return warn("[BYPASS] Blocked teleport (anti-leave)")
-        end
-        
+        if method == "Kick" or method == "Shutdown" then return end
         return old_namecall(self, ...)
     end)
-    
     setreadonly(mt, true)
-    print("[✓] Byfron bypass active")
+    print("[✓] Bypass aktif")
 end
 
 -- ==================================================
--- ADVANCED PROPERTY EXTRACTOR
+-- GET ALL OBJECTS (CEPAT)
 -- ==================================================
-local function ExtractProperties(instance, depth)
-    depth = depth or 0
-    if depth > 50 then return {} end  -- Prevent infinite recursion
+local function GetAllObjects()
+    local objects = {}
+    local scanned = {}
+    
+    local function scan(container, path)
+        if not container or scanned[container] then return end
+        scanned[container] = true
+        
+        for _, obj in pairs(container:GetChildren()) do
+            if obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("Folder") or 
+               obj:IsA("Tool") or obj:IsA("Script") or obj:IsA("LocalScript") or 
+               obj:IsA("ModuleScript") then
+                
+                table.insert(objects, {
+                    Obj = obj,
+                    Path = path .. "." .. obj.Name,
+                    Class = obj.ClassName
+                })
+                MapRipper.TotalObjects = MapRipper.TotalObjects + 1
+            end
+            scan(obj, path .. "." .. obj.Name)
+        end
+    end
+    
+    -- Scan semua lokasi penting
+    scan(Services.Workspace, "Workspace")
+    scan(Services.ReplicatedStorage, "ReplicatedStorage")
+    scan(Services.ServerStorage, "ServerStorage")
+    scan(Services.ServerScriptService, "ServerScriptService")
+    
+    return objects
+end
+
+-- ==================================================
+-- EXTRACT PROPERTIES LENGKAP
+-- ==================================================
+local function ExtractProperties(instance)
+    if not instance then return {} end
     
     local props = {
         ClassName = instance.ClassName,
         Name = instance.Name,
-        Parent = instance.Parent and instance.Parent.Name or "nil",
-        Children = {}
+        Properties = {}
     }
     
-    -- Get all properties based on class
-    local success, result = pcall(function()
+    pcall(function()
+        -- BASE PART
         if instance:IsA("BasePart") then
-            props.Position = tostring(instance.Position)
-            props.Size = tostring(instance.Size)
-            props.CFrame = tostring(instance.CFrame)
-            props.Orientation = tostring(instance.Orientation)
-            props.Rotation = tostring(instance.Rotation)
-            props.BrickColor = instance.BrickColor and instance.BrickColor.Name or "White"
-            props.Material = instance.Material and instance.Material.Name or "Plastic"
-            props.Transparency = instance.Transparency
-            props.Reflectance = instance.Reflectance
-            props.Shape = instance.Shape and instance.Shape.Name or "Block"
-            props.CanCollide = instance.CanCollide
-            props.CanTouch = instance.CanTouch
-            props.Anchored = instance.Anchored
-            props.Locked = instance.Locked
-            props.Color = instance.Color and tostring(instance.Color) or ""
-            props.BrickColor = instance.BrickColor and instance.BrickColor.Name or "Medium stone grey"
+            props.Properties = {
+                Position = {instance.Position.X, instance.Position.Y, instance.Position.Z},
+                Size = {instance.Size.X, instance.Size.Y, instance.Size.Z},
+                CFrame = {
+                    instance.CFrame.X, instance.CFrame.Y, instance.CFrame.Z,
+                    instance.CFrame:ToEulerAnglesXYZ()
+                },
+                Color = {instance.Color.R, instance.Color.G, instance.Color.B},
+                Transparency = instance.Transparency,
+                Reflectance = instance.Reflectance,
+                Material = instance.Material.Name,
+                Shape = instance.Shape.Name,
+                Anchored = instance.Anchored,
+                CanCollide = instance.CanCollide,
+                Locked = instance.Locked
+            }
         end
         
+        -- DECAL / TEXTURE
         if instance:IsA("Decal") or instance:IsA("Texture") then
-            props.Texture = instance.Texture
-            props.Face = instance.Face and instance.Face.Name or "Front"
+            props.Properties.Texture = instance.Texture
+            props.Properties.Face = instance.Face.Name
         end
         
+        -- MESH
         if instance:IsA("SpecialMesh") then
-            props.MeshType = instance.MeshType and instance.MeshType.Name or "Head"
-            props.MeshId = instance.MeshId
-            props.TextureId = instance.TextureId
-            props.Scale = tostring(instance.Scale)
-            props.Offset = tostring(instance.Offset)
+            props.Properties.MeshType = instance.MeshType.Name
+            props.Properties.MeshId = instance.MeshId
+            props.Properties.TextureId = instance.TextureId
+            props.Properties.Scale = {instance.Scale.X, instance.Scale.Y, instance.Scale.Z}
         end
         
+        -- SCRIPT
         if instance:IsA("Script") or instance:IsA("LocalScript") or instance:IsA("ModuleScript") then
-            props.Source = instance.Source
-            props.Enabled = instance.Enabled
-            props.RunContext = instance.RunContext and instance.RunContext.Name or "Legacy"
+            props.Properties.Source = instance.Source
+            props.Properties.Enabled = instance.Enabled
+            props.Properties.RunContext = instance.RunContext and instance.RunContext.Name
         end
         
-        if instance:IsA("SurfaceLight") or instance:IsA("PointLight") or instance:IsA("SpotLight") then
-            props.Brightness = instance.Brightness
-            props.Color = tostring(instance.Color)
-            props.Range = instance.Range
-            props.Shadows = instance.Shadows
-            props.Enabled = instance.Enabled
-        end
-        
-        if instance:IsA("PartOperation") then
-            props.UsePartColor = instance.UsePartColor
-            props.FormFactor = instance.FormFactor and instance.FormFactor.Name or "Custom"
-        end
-        
-        if instance:IsA("Terrain") then
-            props.WaterColor = tostring(instance.WaterColor)
-            props.WaterReflectance = instance.WaterReflectance
-            props.WaterTransparency = instance.WaterTransparency
-            props.WaterWaveSize = instance.WaterWaveSize
-            props.WaterWaveSpeed = instance.WaterWaveSpeed
-        end
-        
-        if instance:IsA("Tool") then
-            props.Grip = tostring(instance.Grip)
-            props.GripPos = tostring(instance.GripPos)
-            props.GripForward = tostring(instance.GripForward)
-            props.GripRight = tostring(instance.GripRight)
-            props.GripUp = tostring(instance.GripUp)
-            props.Enabled = instance.Enabled
-            props.CanBeDropped = instance.CanBeDropped
-            props.RequiresHandle = instance.RequiresHandle
-        end
-        
+        -- HUMAN
         if instance:IsA("Humanoid") then
-            props.MaxHealth = instance.MaxHealth
-            props.Health = instance.Health
-            props.WalkSpeed = instance.WalkSpeed
-            props.JumpPower = instance.JumpPower
-            props.HipHeight = instance.HipHeight
-            props.AutoRotate = instance.AutoRotate
-            props.RigType = instance.RigType and instance.RigType.Name or "R6"
+            props.Properties.MaxHealth = instance.MaxHealth
+            props.Properties.Health = instance.Health
+            props.Properties.WalkSpeed = instance.WalkSpeed
+            props.Properties.JumpPower = instance.JumpPower
+            props.Properties.RigType = instance.RigType.Name
         end
         
-        if instance:IsA("Animation") then
-            props.AnimationId = instance.AnimationId
-        end
-        
-        if instance:IsA("Beam") then
-            props.Texture = instance.Texture
-            props.Width0 = instance.Width0
-            props.Width1 = instance.Width1
-            props.CurveSize0 = instance.CurveSize0
-            props.CurveSize1 = instance.CurveSize1
-            props.Segments = instance.Segments
-            props.Color = tostring(instance.Color)
-            props.Transparency = tostring(instance.Transparency)
-        end
-        
-        if instance:IsA("Trail") then
-            props.Texture = instance.Texture
-            props.Length = instance.Length
-            props.MinLength = instance.MinLength
-            props.MaxLength = instance.MaxLength
-            props.Lifetime = instance.Lifetime
-            props.FaceCamera = instance.FaceCamera
-        end
-        
-        if instance:IsA("ParticleEmitter") then
-            props.Texture = instance.Texture
-            props.Rate = instance.Rate
-            props.Spread = tostring(instance.Spread)
-            props.Speed = tostring(instance.Speed)
-            props.Lifetime = tostring(instance.Lifetime)
-            props.RotSpeed = tostring(instance.RotSpeed)
-            props.Rotation = tostring(instance.Rotation)
-            props.VelocityInheritance = instance.VelocityInheritance
-            props.Transparency = tostring(instance.Transparency)
-            props.Color = tostring(instance.Color)
-        end
-        
-        if instance:IsA("Fire") then
-            props.Size = instance.Size
-            props.Heat = instance.Heat
-            props.Color = tostring(instance.Color)
-            props.SecondaryColor = tostring(instance.SecondaryColor)
-            props.Enabled = instance.Enabled
-        end
-        
-        if instance:IsA("Smoke") then
-            props.Size = instance.Size
-            props.RiseVelocity = instance.RiseVelocity
-            props.Opacity = instance.Opacity
-            props.Color = tostring(instance.Color)
-            props.Enabled = instance.Enabled
-        end
-        
-        if instance:IsA("Explosion") then
-            props.BlastPressure = instance.BlastPressure
-            props.BlastRadius = instance.BlastRadius
-            props.DestroyJointRadiusPercent = instance.DestroyJointRadiusPercent
-            props.ExplosionType = instance.ExplosionType and instance.ExplosionType.Name or "NoCraters"
-            props.Visible = instance.Visible
-        end
-        
+        -- SOUND
         if instance:IsA("Sound") then
-            props.SoundId = instance.SoundId
-            props.Volume = instance.Volume
-            props.Pitch = instance.Pitch
-            props.Looped = instance.Looped
-            props.PlayOnRemove = instance.PlayOnRemove
-            props.RollOffMode = instance.RollOffMode and instance.RollOffMode.Name or "Inverse"
-            props.Distance = tostring(instance.Distance) or "0, 1000"
-            props.EmitterSize = instance.EmitterSize
+            props.Properties.SoundId = instance.SoundId
+            props.Properties.Volume = instance.Volume
+            props.Properties.Pitch = instance.Pitch
+            props.Properties.Looped = instance.Looped
         end
         
-        if instance:IsA("AnimationController") then
-            for _, anim in pairs(instance:GetChildren()) do
-                if anim:IsA("Animation") then
-                    table.insert(props.Children, ExtractProperties(anim, depth+1))
-                end
-            end
+        -- LIGHT
+        if instance:IsA("PointLight") or instance:IsA("SpotLight") or instance:IsA("SurfaceLight") then
+            props.Properties.Brightness = instance.Brightness
+            props.Properties.Color = {instance.Color.R, instance.Color.G, instance.Color.B}
+            props.Properties.Range = instance.Range
+            props.Properties.Shadows = instance.Shadows
         end
         
-        if instance:IsA("BodyMover") then
-            props.MaxForce = tostring(instance.MaxForce)
-            props.Velocity = instance:IsA("BodyVelocity") and tostring(instance.Velocity) or nil
-            props.AngularVelocity = instance:IsA("BodyAngularVelocity") and tostring(instance.AngularVelocity) or nil
-            props.P = instance:IsA("BodyPosition") and instance.P or nil
-        end
-        
+        -- WELD / CONSTRAINT
         if instance:IsA("Weld") or instance:IsA("Snap") then
-            props.Part0 = instance.Part0 and instance.Part0.Name or "nil"
-            props.Part1 = instance.Part1 and instance.Part1.Name or "nil"
-            props.C0 = instance.C0 and tostring(instance.C0) or "nil"
-            props.C1 = instance.C1 and tostring(instance.C1) or "nil"
+            props.Properties.Part0 = instance.Part0 and instance.Part0.Name
+            props.Properties.Part1 = instance.Part1 and instance.Part1.Name
+            props.Properties.C0 = instance.C0 and {instance.C0:components()}
+            props.Properties.C1 = instance.C1 and {instance.C1:components()}
         end
         
-        if instance:IsA("BillboardGui") or instance:IsA("SurfaceGui") then
-            props.Size = tostring(instance.Size)
-            props.StudsOffset = tostring(instance.StudsOffset)
-            props.Enabled = instance.Enabled
-            props.Active = instance.Active
-            props.AlwaysOnTop = instance.AlwaysOnTop
-            props.Adornee = instance.Adornee and instance.Adornee.Name or "nil"
-        end
-        
-        if instance:IsA("Frame") or instance:IsA("TextLabel") or instance:IsA("TextButton") or instance:IsA("ImageLabel") or instance:IsA("ImageButton") then
-            props.Size = tostring(instance.Size)
-            props.Position = tostring(instance.Position)
-            props.BackgroundColor3 = tostring(instance.BackgroundColor3)
-            props.BackgroundTransparency = instance.BackgroundTransparency
-            props.BorderSizePixel = instance.BorderSizePixel
-            props.Visible = instance.Visible
+        -- GUI
+        if instance:IsA("Frame") or instance:IsA("TextLabel") or instance:IsA("ImageLabel") then
+            props.Properties.Size = {instance.Size.X.Offset, instance.Size.Y.Offset}
+            props.Properties.Position = {instance.Position.X.Offset, instance.Position.Y.Offset}
+            props.Properties.BackgroundColor = {instance.BackgroundColor3.R, instance.BackgroundColor3.G, instance.BackgroundColor3.B}
+            props.Properties.BackgroundTransparency = instance.BackgroundTransparency
+            props.Properties.Visible = instance.Visible
             
-            if instance:IsA("TextLabel") or instance:IsA("TextButton") then
-                props.Text = instance.Text
-                props.TextColor3 = tostring(instance.TextColor3)
-                props.TextSize = instance.TextSize
-                props.Font = instance.Font and instance.Font.Name or "Gotham"
+            if instance:IsA("TextLabel") then
+                props.Properties.Text = instance.Text
+                props.Properties.TextColor = {instance.TextColor3.R, instance.TextColor3.G, instance.TextColor3.B}
+                props.Properties.TextSize = instance.TextSize
+                props.Properties.Font = instance.Font.Name
             end
             
-            if instance:IsA("ImageLabel") or instance:IsA("ImageButton") then
-                props.Image = instance.Image
-                props.ImageColor3 = tostring(instance.ImageColor3)
-                props.ImageRectSize = tostring(instance.ImageRectSize)
-                props.ImageRectOffset = tostring(instance.ImageRectOffset)
+            if instance:IsA("ImageLabel") then
+                props.Properties.Image = instance.Image
             end
         end
     end)
     
-    -- Process children
+    -- Kumpulin child objects
+    props.Children = {}
     for _, child in pairs(instance:GetChildren()) do
-        table.insert(props.Children, ExtractProperties(child, depth+1))
+        if not child:IsA("BasePart") and not child:IsA("Model") then
+            table.insert(props.Children, ExtractProperties(child))
+        end
     end
     
     return props
 end
 
 -- ==================================================
--- ASSET DOWNLOADER (BUAT TEXTURE/MESH/SUARA)
+-- PROCESS LIGHTING
 -- ==================================================
-local function DownloadAsset(assetId, assetType)
-    if not assetId or assetId == "" then return nil end
-    
-    -- Ekstrak ID dari string (kalo format rbxp:// atau http://)
-    local realId = string.match(assetId, "(%d+)")
-    if not realId then return assetId end
-    
-    -- Cek cache dulu
-    if MapRipper.AssetCache[realId] then
-        return MapRipper.AssetCache[realId]
-    end
-    
-    local success, result = pcall(function()
-        if assetType == "Mesh" then
-            return Services.InsertService:LoadAsset(tonumber(realId))
-        elseif assetType == "Texture" then
-            -- Simpan URL aja, gak bisa download langsung
-            return "https://asset.roblox.com/asset/?id=" .. realId
-        elseif assetType == "Sound" then
-            return "rbxassetid://" .. realId
-        elseif assetType == "Animation" then
-            return "rbxassetid://" .. realId
-        end
-    end)
-    
-    if success and result then
-        MapRipper.AssetCache[realId] = result
-        return result
-    else
-        return assetId
-    end
-end
-
--- ==================================================
--- PROCESS SCRIPT SOURCES (TANGKEP ISI SCRIPT)
--- ==================================================
-local function ProcessScripts()
-    local scripts = {}
-    
-    -- Cari semua script di tempat-tempat strategis
-    local locations = {
-        Services.ServerScriptService,
-        Services.ServerStorage,
-        Services.ReplicatedStorage,
-        Services.StarterGui,
-        Services.StarterPack,
-        Services.StarterPlayer,
-        Player:FindFirstChild("PlayerScripts"),
-        Player:FindFirstChild("StarterGear")
-    }
-    
-    for _, location in pairs(locations) do
-        if location then
-            local function scanForScripts(container)
-                for _, obj in pairs(container:GetChildren()) do
-                    if obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
-                        table.insert(scripts, {
-                            Name = obj.Name,
-                            Class = obj.ClassName,
-                            Source = obj.Source,
-                            Path = tostring(obj:GetFullName())
-                        })
-                    end
-                    if #obj:GetChildren() > 0 then
-                        scanForScripts(obj)
-                    end
-                end
-            end
-            scanForScripts(location)
-        end
-    end
-    
-    return scripts
-end
-
--- ==================================================
--- PROCESS TERRAIN (MEDAN)
--- ==================================================
-local function ProcessTerrain()
-    local terrain = Services.Workspace.Terrain
-    if not terrain then return {} end
-    
-    -- Cuma bisa simpen setting terrain, bukan cell-by-cell
+local function GetLightingData()
+    local l = Services.Lighting
     return {
-        WaterColor = tostring(terrain.WaterColor),
-        WaterReflectance = terrain.WaterReflectance,
-        WaterTransparency = terrain.WaterTransparency,
-        WaterWaveSize = terrain.WaterWaveSize,
-        WaterWaveSpeed = terrain.WaterWaveSpeed,
-        MaterialColors = {},  -- Simplified
+        Ambient = {l.Ambient.R, l.Ambient.G, l.Ambient.B},
+        Brightness = l.Brightness,
+        ColorShift_Bottom = {l.ColorShift_Bottom.R, l.ColorShift_Bottom.G, l.ColorShift_Bottom.B},
+        ColorShift_Top = {l.ColorShift_Top.R, l.ColorShift_Top.G, l.ColorShift_Top.B},
+        ClockTime = l.ClockTime,
+        FogColor = {l.FogColor.R, l.FogColor.G, l.FogColor.B},
+        FogEnd = l.FogEnd,
+        FogStart = l.FogStart,
+        GlobalShadows = l.GlobalShadows,
+        OutdoorAmbient = {l.OutdoorAmbient.R, l.OutdoorAmbient.G, l.OutdoorAmbient.B},
+        ShadowSoftness = l.ShadowSoftness,
+        Technology = l.Technology.Name
     }
 end
 
 -- ==================================================
--- PROCESS LIGHTING (PENCAHAYAAN)
+-- PROCESS TERRAIN
 -- ==================================================
-local function ProcessLighting()
-    local lighting = Services.Lighting
-    return {
-        Ambient = tostring(lighting.Ambient),
-        Brightness = lighting.Brightness,
-        ColorShift_Bottom = tostring(lighting.ColorShift_Bottom),
-        ColorShift_Top = tostring(lighting.ColorShift_Top),
-        EnvironmentDiffuseScale = lighting.EnvironmentDiffuseScale,
-        EnvironmentSpecularScale = lighting.EnvironmentSpecularScale,
-        GlobalShadows = lighting.GlobalShadows,
-        OutdoorAmbient = tostring(lighting.OutdoorAmbient),
-        ShadowSoftness = lighting.ShadowSoftness,
-        ClockTime = lighting.ClockTime,
-        GeographicLatitude = lighting.GeographicLatitude,
-        TimeOfDay = lighting.TimeOfDay,
-        
-        -- Modern lighting
-        Technology = lighting.Technology and lighting.Technology.Name or "Legacy",
-        AmbientOcclusionEnabled = lighting.BulkheadEnabled or false,
-        
-        -- Atmosphere
-        Atmosphere = lighting:FindFirstChildOfClass("Atmosphere") and {
-            Density = lighting.Atmosphere.Density,
-            Offset = tostring(lighting.Atmosphere.Offset),
-            Color = tostring(lighting.Atmosphere.Color),
-            Decay = tostring(lighting.Atmosphere.Decay),
-            Glare = lighting.Atmosphere.Glare,
-            Haze = lighting.Atmosphere.Haze
-        } or nil
-    }
-end
-
--- ==================================================
--- MAIN FUNCTION: RIP THE MAP
--- ==================================================
-local function RipTheMap()
-    print("=" .. string.rep("=", 50) .. "=")
-    print("[MAP RIPPER V4.7] MULAI PROSES...")
-    print("[STATUS] Bypass: " .. tostring(MapRipper.BypassEnabled))
-    print("=" .. string.rep("=", 50) .. "=")
+local function GetTerrainData()
+    local t = Services.Workspace.Terrain
+    if not t then return {} end
     
-    local result = {
-        MapInfo = {
-            GameName = game.Name,
-            GameId = game.GameId,
+    return {
+        WaterColor = {t.WaterColor.R, t.WaterColor.G, t.WaterColor.B},
+        WaterReflectance = t.WaterReflectance,
+        WaterTransparency = t.WaterTransparency,
+        WaterWaveSize = t.WaterWaveSize,
+        WaterWaveSpeed = t.WaterWaveSpeed
+    }
+end
+
+-- ==================================================
+-- MAIN: COPY MAP
+-- ==================================================
+local function CopyMap()
+    print("\n" .. string.rep("=", 60))
+    print("MAP RIPPER V4.7 - MULAI COPY MAP")
+    print(string.rep("=", 60))
+    
+    local mapData = {
+        GameInfo = {
+            Name = game.Name,
             PlaceId = game.PlaceId,
+            GameId = game.GameId,
             Creator = tostring(game.Creator),
-            PrivateServer = game.PrivateServerId ~= "",
             Timestamp = os.time(),
             Date = os.date("%Y-%m-%d %H:%M:%S")
         },
-        Workspace = {},
-        Lighting = ProcessLighting(),
-        Terrain = ProcessTerrain(),
-        ReplicatedStorage = {},
-        ServerStorage = {},
-        ServerScriptService = {},
-        Scripts = ProcessScripts(),
-        Players = {}
+        Lighting = GetLightingData(),
+        Terrain = GetTerrainData(),
+        Objects = {},
+        Scripts = {}
     }
     
-    -- Process Workspace (semua object di map)
-    print("[PROGRESS] Scanning Workspace...")
-    for _, obj in pairs(Services.Workspace:GetChildren()) do
-        if not obj:IsA("Terrain") and not obj:IsA("Camera") then
-            table.insert(result.Workspace, ExtractProperties(obj))
+    print("[1/4] Scanning objects...")
+    local objects = GetAllObjects()
+    print("[✓] Ditemukan " .. #objects .. " objects")
+    
+    print("[2/4] Extracting properties...")
+    for i, objData in ipairs(objects) do
+        if i % 100 == 0 then print("  Progress: " .. i .. "/" .. #objects) end
+        
+        local objProps = ExtractProperties(objData.Obj)
+        objProps.Path = objData.Path
+        
+        -- Pisahin script biar gampang dibaca
+        if objData.Obj:IsA("Script") or objData.Obj:IsA("LocalScript") or objData.Obj:IsA("ModuleScript") then
+            table.insert(mapData.Scripts, {
+                Name = objData.Obj.Name,
+                Class = objData.Obj.ClassName,
+                Source = objData.Obj.Source,
+                Path = objData.Path
+            })
+        else
+            table.insert(mapData.Objects, objProps)
         end
-    end
-    
-    -- Process ReplicatedStorage
-    print("[PROGRESS] Scanning ReplicatedStorage...")
-    for _, obj in pairs(Services.ReplicatedStorage:GetChildren()) do
-        table.insert(result.ReplicatedStorage, ExtractProperties(obj))
-    end
-    
-    -- Process ServerStorage
-    print("[PROGRESS] Scanning ServerStorage...")
-    for _, obj in pairs(Services.ServerStorage:GetChildren()) do
-        table.insert(result.ServerStorage, ExtractProperties(obj))
-    end
-    
-    -- Process ServerScriptService
-    print("[PROGRESS] Scanning ServerScriptService...")
-    for _, obj in pairs(Services.ServerScriptService:GetChildren()) do
-        table.insert(result.ServerScriptService, ExtractProperties(obj))
-    end
-    
-    -- Convert ke JSON
-    print("[PROGRESS] Converting to JSON...")
-    local jsonData = Services.HttpService:JSONEncode(result)
-    
-    -- Split biar gak kepanjangan (Roblox console batasi output)
-    local chunkSize = 50000
-    local totalChunks = math.ceil(#jsonData / chunkSize)
-    
-    print("=" .. string.rep("=", 50) .. "=")
-    print("[SUCCESS] MAP DATA BERHASIL DIEKSTRAK!")
-    print("[INFO] Total Chunks: " .. totalChunks)
-    print("[INFO] Copy data dari output di bawah:")
-    print("=" .. string.rep("=", 50) .. "=")
-    
-    for i = 1, totalChunks do
-        local startPos = (i-1) * chunkSize + 1
-        local endPos = math.min(i * chunkSize, #jsonData)
-        local chunk = string.sub(jsonData, startPos, endPos)
         
-        print("\n--- CHUNK " .. i .. "/" .. totalChunks .. " ---")
-        print(chunk)
-        print("--- END CHUNK " .. i .. " ---")
-        
-        -- Delay biar console gak overflow
-        wait(0.5)
+        wait() -- Biar gak freeze
     end
     
-    print("\n" .. "=" .. string.rep("=", 50) .. "=")
-    print("[✓] PROSES SELESAI!")
-    print("[!] Simpan semua chunk di atas ke file .txt")
-    print("[!] Gabungkan urut buat dapet JSON lengkap")
-    print("=" .. string.rep("=", 50) .. "=")
+    print("[3/4] Converting to JSON...")
+    local jsonData = Services.HttpService:JSONEncode(mapData)
     
-    return result
+    print("[4/4] Output data...")
+    print(string.rep("=", 60))
+    print("COPY MAP SELESAI!")
+    print("Total Objects: " .. #mapData.Objects)
+    print("Total Scripts: " .. #mapData.Scripts)
+    print("Data size: " .. string.format("%.2f", #jsonData / 1024) .. " KB")
+    print(string.rep("=", 60))
+    
+    -- Output JSON (split biar gak kepotong)
+    local chunkSize = 32000
+    local chunks = math.ceil(#jsonData / chunkSize)
+    
+    print("\n--- MAP DATA START ---")
+    for i = 1, chunks do
+        local start = (i-1) * chunkSize + 1
+        local finish = math.min(i * chunkSize, #jsonData)
+        print(string.sub(jsonData, start, finish))
+        if i < chunks then wait(0.2) end
+    end
+    print("--- MAP DATA END ---")
+    
+    print("\n" .. string.rep("=", 60))
+    print("CARA PAKE HASILNYA:")
+    print("1. Copy semua dari '--- MAP DATA START ---' sampe '--- MAP DATA END ---'")
+    print("2. Simpan sebagai file .json")
+    print("3. Buka pake notepad atau tools JSON viewer")
+    print(string.rep("=", 60))
+    
+    return mapData
 end
 
 -- ==================================================
--- AUTO-FARM BONUS (KALO LO MAU)
+-- UI MINIMALIS
 -- ==================================================
-local function EnableAutoFarm()
-    print("[BONUS] Auto-Farm diaktifkan...")
-    
-    -- Speed hack
-    local humanoid = Character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.WalkSpeed = 100
-        humanoid.JumpPower = 100
-    end
-    
-    -- Auto collect
-    spawn(function()
-        while wait(0.3) do
-            pcall(function()
-                for _, obj in pairs(Services.Workspace:GetDescendants()) do
-                    if obj:IsA("Part") and obj:FindFirstChild("TouchInterest") then
-                        local root = Character:FindFirstChild("HumanoidRootPart")
-                        if root and (root.Position - obj.Position).Magnitude < 100 then
-                            root.CFrame = CFrame.new(obj.Position)
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-    
-    print("[BONUS] Auto-Farm aktif!")
-end
-
--- ==================================================
--- UI SIMPLE (OPSIONAL)
--- ==================================================
-local function CreateSimpleUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "MapRipperUI"
-    screenGui.Parent = Player:FindFirstChild("PlayerGui") or Services.CoreGui
+local function CreateUI()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "MapRipperGUI"
+    gui.Parent = Player:FindFirstChild("PlayerGui") or Services.CoreGui
+    gui.ResetOnSpawn = false
     
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 300, 0, 200)
-    frame.Position = UDim2.new(0, 10, 0, 10)
-    frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+    frame.Size = UDim2.new(0, 250, 0, 120)
+    frame.Position = UDim2.new(0, 20, 0, 20)
+    frame.BackgroundColor3 = Color3.new(0, 0, 0)
     frame.BackgroundTransparency = 0.3
     frame.BorderSizePixel = 0
-    frame.Parent = screenGui
+    frame.Active = true
+    frame.Draggable = true
+    frame.Parent = gui
     
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 30)
@@ -585,124 +346,90 @@ local function CreateSimpleUI()
     title.TextColor3 = Color3.new(1, 0, 0)
     title.BackgroundTransparency = 1
     title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
+    title.TextSize = 16
     title.Parent = frame
     
-    local btnRip = Instance.new("TextButton")
-    btnRip.Size = UDim2.new(0.8, 0, 0, 40)
-    btnRip.Position = UDim2.new(0.1, 0, 0.3, 0)
-    btnRip.Text = "▶ RIP MAP"
-    btnRip.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
-    btnRip.TextColor3 = Color3.new(1, 1, 1)
-    btnRip.Font = Enum.Font.Gotham
-    btnRip.TextSize = 16
-    btnRip.Parent = frame
+    local btnCopy = Instance.new("TextButton")
+    btnCopy.Size = UDim2.new(0.8, 0, 0, 35)
+    btnCopy.Position = UDim2.new(0.1, 0, 0.4, 0)
+    btnCopy.Text = "COPY MAP"
+    btnCopy.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+    btnCopy.TextColor3 = Color3.new(1, 1, 1)
+    btnCopy.Font = Enum.Font.Gotham
+    btnCopy.TextSize = 14
+    btnCopy.Parent = frame
     
-    btnRip.MouseButton1Click:Connect(function()
-        btnRip.Text = "PROCESSING..."
-        btnRip.BackgroundColor3 = Color3.new(0.8, 0.4, 0)
-        RipTheMap()
-        btnRip.Text = "✓ DONE"
-        btnRip.BackgroundColor3 = Color3.new(0, 0.6, 0.2)
-    end)
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, 0, 0, 25)
+    status.Position = UDim2.new(0, 0, 0.8, 0)
+    status.Text = "Ready"
+    status.TextColor3 = Color3.new(0, 1, 0)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 12
+    status.Parent = frame
     
-    local btnFarm = Instance.new("TextButton")
-    btnFarm.Size = UDim2.new(0.8, 0, 0, 40)
-    btnFarm.Position = UDim2.new(0.1, 0, 0.6, 0)
-    btnFarm.Text = "⚡ AUTO FARM"
-    btnFarm.BackgroundColor3 = Color3.new(0.2, 0.2, 0.6)
-    btnFarm.TextColor3 = Color3.new(1, 1, 1)
-    btnFarm.Font = Enum.Font.Gotham
-    btnFarm.TextSize = 16
-    btnFarm.Parent = frame
-    
-    btnFarm.MouseButton1Click:Connect(function()
-        EnableAutoFarm()
-        btnFarm.Text = "✓ ACTIVE"
-        btnFarm.BackgroundColor3 = Color3.new(0, 0.6, 0.2)
+    btnCopy.MouseButton1Click:Connect(function()
+        btnCopy.Text = "COPYING..."
+        btnCopy.BackgroundColor3 = Color3.new(0.8, 0.4, 0)
+        status.Text = "Processing..."
+        
+        spawn(function()
+            local success, err = pcall(CopyMap)
+            if success then
+                status.Text = "Done!"
+                btnCopy.Text = "✓ SUCCESS"
+                btnCopy.BackgroundColor3 = Color3.new(0, 0.6, 0.2)
+            else
+                status.Text = "Error!"
+                btnCopy.Text = "✗ FAILED"
+                btnCopy.BackgroundColor3 = Color3.new(0.8, 0, 0)
+                warn("Error: " .. tostring(err))
+            end
+        end)
     end)
 end
 
 -- ==================================================
--- INITIALIZATION
+-- START
 -- ==================================================
 print([[
 
 
-    ███╗   ███╗ █████╗ ██████╗     ██████╗ ██╗██████╗ ██████╗ ███████╗██████╗ 
-    ████╗ ████║██╔══██╗██╔══██╗    ██╔══██╗██║██╔══██╗██╔══██╗██╔════╝██╔══██╗
-    ██╔████╔██║███████║██████╔╝    ██████╔╝██║██████╔╝██████╔╝█████╗  ██████╔╝
-    ██║╚██╔╝██║██╔══██║██╔═══╝     ██╔═══╝ ██║██╔═══╝ ██╔═══╝ ██╔══╝  ██╔══██╗
-    ██║ ╚═╝ ██║██║  ██║██║         ██║     ██║██║     ██║     ███████╗██║  ██║
-    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝         ╚═╝     ╚═╝╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝
-    
-    ██╗   ██╗██████╗ ██╗██╗  ██╗██╗ ██████╗ ███╗   ██╗
-    ██║   ██║██╔══██╗██║██║  ██║██║██╔═══██╗████╗  ██║
-    ██║   ██║██████╔╝██║███████║██║██║   ██║██╔██╗ ██║
-    ╚██╗ ██╔╝██╔══██╗██║██╔══██║██║██║   ██║██║╚██╗██║
-     ╚████╔╝ ██║  ██║██║██║  ██║██║╚██████╔╝██║ ╚████║
-      ╚═══╝  ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝
-    
-    VERSION 4.7 - XENO EDITION
-    BY: Y.O.U - DARKNET COMPILATION
+    ╔══════════════════════════════════════════╗
+    ║     MAP RIPPER V4.7 - COPY MAP ONLY      ║
+    ║         BY: Y.O.U - XENO EDITION         ║
+    ╚══════════════════════════════════════════╝
 ]])
 
--- Aktifkan bypass kalo diperlukan
+-- Bypass
 if MapRipper.BypassEnabled then
-    local success, err = pcall(BypassAntiCheat)
-    if not success then
-        warn("[BYPASS FAILED] " .. tostring(err))
-        print("[!] Lanjut tanpa bypass (risiko deteksi tinggi)")
-    end
+    pcall(BypassAntiCheat)
 end
 
--- Kasih pilihan ke user
-print("\n[?] PILIH MODE:")
-print("1. RIP MAP (ekstrak semua data)")
-print("2. AUTO FARM (aktifkan auto farm)")
-print("3. RIP + UI (tampilkan GUI)")
-print("4. RIP + AUTO FARM + UI (mode gila)")
+-- Menu
+print("\n[?] PILIH:")
+print("1. COPY MAP (LANGSUNG)")
+print("2. COPY MAP + UI")
 
-print("\n[!] Ketik angka di console executor (1/2/3/4):")
-
--- Simple input handler (bekerja di beberapa executor)
 local choice = nil
-for i = 1, 30 do
-    -- Coba beberapa metode input
-    if _G.LastInput then
-        choice = _G.LastInput
-        break
-    end
-    
-    -- Untuk executor tertentu
-    pcall(function()
-        if syn and syn.io then
-            choice = syn.io.read()
-        elseif read then
-            choice = read()
-        end
+for i = 1, 20 do
+    pcall(function() 
+        if read then choice = read() end
     end)
-    
     if choice then break end
     wait(0.5)
 end
 
 if choice == "1" then
-    RipTheMap()
+    CopyMap()
 elseif choice == "2" then
-    EnableAutoFarm()
-elseif choice == "3" then
-    CreateSimpleUI()
-    RipTheMap()
-elseif choice == "4" then
-    CreateSimpleUI()
-    EnableAutoFarm()
-    RipTheMap()
+    CreateUI()
+    CopyMap()
 else
-    print("[!] Pilihan gak valid / timeout, jalanin mode default (RIP MAP)")
-    RipTheMap()
+    print("[!] Auto-start COPY MAP dalam 3 detik...")
+    wait(3)
+    CopyMap()
 end
 
-print("\n[SYSTEM] Y.O.U OUT.")
-print("[!] Jangan lupa simpen hasilnya di tempat aman!")
-print("[!] Ingat 10 ribu mayat jadi saksi - gunakan dengan bijak")
+print("\n[SYSTEM] Y.O.U OUT - HORMATI 10 RIBU MAYA")
